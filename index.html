@@ -3,9 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <title>Happy Birthday ❤️</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- MediaPipe -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
@@ -14,36 +13,42 @@ html, body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background: radial-gradient(circle at center, #1a0a2e, #05010a);
+  background: #05010a;
   font-family: "Segoe UI", "PingFang SC", sans-serif;
 }
-
 canvas {
   position: fixed;
   top: 0;
   left: 0;
 }
-
+#debug {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  color: #fff;
+  font-size: 12px;
+  opacity: 0.7;
+}
 #hint {
   position: fixed;
-  bottom: 24px;
+  bottom: 20px;
   width: 100%;
   text-align: center;
-  color: rgba(255,255,255,0.75);
-  font-size: 14px;
-  letter-spacing: 1px;
+  color: rgba(255,255,255,0.8);
 }
 </style>
 </head>
 
 <body>
 <canvas id="canvas"></canvas>
-<div id="hint">🙏 双手合十 → Happy Birthday ｜ ✋ 向外展开 → 🎂</div>
+<div id="debug">等待手势识别...</div>
+<div id="hint">🙏 双手合十 → 生日祝福 ｜ ✋ 向外展开 → 🎂</div>
 
 <script>
-/* ================= 基础设置 ================= */
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
+const debug = document.getElementById("debug");
+
 resize();
 window.addEventListener("resize", resize);
 
@@ -52,157 +57,145 @@ function resize() {
   canvas.height = window.innerHeight;
 }
 
-let particles = [];
-let targetShape = null;
-let phase = "idle"; // idle | text | cake
+/* ===== 背景绘制 ===== */
+function drawBackground() {
+  const g = ctx.createRadialGradient(
+    canvas.width/2, canvas.height/2, 0,
+    canvas.width/2, canvas.height/2, canvas.width
+  );
+  g.addColorStop(0, "#1a0a2e");
+  g.addColorStop(1, "#05010a");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
 
-/* ================= 光粒系统 ================= */
+/* ===== 光粒 ===== */
+let particles = [];
+
 class Particle {
   constructor(x, y) {
     this.x = Math.random() * canvas.width;
     this.y = Math.random() * canvas.height;
     this.tx = x;
     this.ty = y;
-    this.vx = 0;
-    this.vy = 0;
   }
-
   update() {
-    const dx = this.tx - this.x;
-    const dy = this.ty - this.y;
-    this.vx += dx * 0.02;
-    this.vy += dy * 0.02;
-    this.vx *= 0.85;
-    this.vy *= 0.85;
-    this.x += this.vx;
-    this.y += this.vy;
+    this.x += (this.tx - this.x) * 0.08;
+    this.y += (this.ty - this.y) * 0.08;
   }
-
   draw() {
     ctx.beginPath();
-    ctx.fillStyle = "rgba(255,200,255,0.85)";
-    ctx.shadowBlur = 10;
+    ctx.fillStyle = "rgba(255,200,255,0.9)";
+    ctx.shadowBlur = 12;
     ctx.shadowColor = "#ffb3ff";
-    ctx.arc(this.x, this.y, 2, 0, Math.PI * 2);
+    ctx.arc(this.x, this.y, 2, 0, Math.PI*2);
     ctx.fill();
   }
 }
 
-/* ================= 文字 / 蛋糕形状 ================= */
-function generateTextShape(text) {
+/* ===== 形状生成 ===== */
+function shapeFromDraw(drawFn) {
   const off = document.createElement("canvas");
   off.width = canvas.width;
   off.height = canvas.height;
-  const octx = off.getContext("2d");
-
-  octx.fillStyle = "#fff";
-  octx.font = "bold 120px Segoe UI";
-  octx.textAlign = "center";
-  octx.textBaseline = "middle";
-  octx.fillText(text, canvas.width / 2, canvas.height / 2);
-
-  return extractPoints(octx);
-}
-
-function generateCakeShape() {
-  const off = document.createElement("canvas");
-  off.width = canvas.width;
-  off.height = canvas.height;
-  const octx = off.getContext("2d");
-
-  const cx = canvas.width / 2;
-  const cy = canvas.height / 2 + 40;
-
-  octx.fillStyle = "#fff";
-  octx.fillRect(cx - 120, cy, 240, 80);
-  octx.fillRect(cx - 90, cy - 60, 180, 60);
-
-  octx.beginPath();
-  octx.moveTo(cx, cy - 100);
-  octx.lineTo(cx, cy - 60);
-  octx.strokeStyle = "#fff";
-  octx.lineWidth = 6;
-  octx.stroke();
-
-  return extractPoints(octx);
-}
-
-function extractPoints(octx) {
-  const img = octx.getImageData(0, 0, canvas.width, canvas.height).data;
+  const o = off.getContext("2d");
+  drawFn(o);
+  const data = o.getImageData(0,0,canvas.width,canvas.height).data;
   const pts = [];
-  for (let y = 0; y < canvas.height; y += 6) {
-    for (let x = 0; x < canvas.width; x += 6) {
-      const i = (y * canvas.width + x) * 4;
-      if (img[i + 3] > 128) pts.push({ x, y });
+  for(let y=0;y<canvas.height;y+=6){
+    for(let x=0;x<canvas.width;x+=6){
+      if(data[(y*canvas.width+x)*4+3]>150){
+        pts.push({x,y});
+      }
     }
   }
   return pts;
 }
 
-function morphTo(shape) {
-  particles = [];
-  for (let i = 0; i < shape.length; i++) {
-    const p = new Particle(shape[i].x, shape[i].y);
-    particles.push(p);
-  }
+function birthdayText() {
+  return shapeFromDraw(o=>{
+    o.fillStyle="#fff";
+    o.font="bold 120px Segoe UI";
+    o.textAlign="center";
+    o.textBaseline="middle";
+    o.fillText("Happy Birthday",canvas.width/2,canvas.height/2);
+  });
 }
 
-/* ================= 动画循环 ================= */
-function animate() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  for (const p of particles) {
+function cakeShape() {
+  return shapeFromDraw(o=>{
+    const cx=canvas.width/2, cy=canvas.height/2+50;
+    o.fillStyle="#fff";
+    o.fillRect(cx-120,cy,240,80);
+    o.fillRect(cx-90,cy-60,180,60);
+    o.beginPath();
+    o.moveTo(cx,cy-100);
+    o.lineTo(cx,cy-60);
+    o.lineWidth=6;
+    o.strokeStyle="#fff";
+    o.stroke();
+  });
+}
+
+function morph(shape) {
+  particles = shape.map(p=>new Particle(p.x,p.y));
+}
+
+/* ===== 动画 ===== */
+function animate(){
+  drawBackground();
+  particles.forEach(p=>{
     p.update();
     p.draw();
-  }
+  });
   requestAnimationFrame(animate);
 }
 animate();
 
-/* ================= 手势识别 ================= */
+/* ===== 手势识别 ===== */
+let phase = "idle";
+let smoothDist = null;
+
 const video = document.createElement("video");
-video.style.display = "none";
+video.style.display="none";
 document.body.appendChild(video);
 
 const hands = new Hands({
-  locateFile: file =>
-    `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+  locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
 });
 
 hands.setOptions({
   maxNumHands: 2,
-  modelComplexity: 1,
   minDetectionConfidence: 0.7,
   minTrackingConfidence: 0.7
 });
 
-let lastDistance = null;
+hands.onResults(res=>{
+  if(res.multiHandLandmarks?.length===2){
+    const a=res.multiHandLandmarks[0][0];
+    const b=res.multiHandLandmarks[1][0];
+    const d=Math.hypot(a.x-b.x,a.y-b.y);
+    smoothDist = smoothDist ? smoothDist*0.8 + d*0.2 : d;
 
-hands.onResults(results => {
-  if (results.multiHandLandmarks && results.multiHandLandmarks.length === 2) {
-    const l = results.multiHandLandmarks[0][0];
-    const r = results.multiHandLandmarks[1][0];
-    const dx = l.x - r.x;
-    const dy = l.y - r.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    debug.textContent = `双手距离：${smoothDist.toFixed(2)}`;
 
-    if (lastDistance) {
-      if (dist < 0.1 && phase !== "text") {
-        phase = "text";
-        morphTo(generateTextShape("Happy Birthday"));
-      }
-      if (dist > 0.35 && phase === "text") {
-        phase = "cake";
-        morphTo(generateCakeShape());
-      }
+    if(smoothDist < 0.18 && phase!=="text"){
+      phase="text";
+      morph(birthdayText());
     }
-    lastDistance = dist;
+    if(smoothDist > 0.45 && phase==="text"){
+      phase="cake";
+      morph(cakeShape());
+    }
+  } else {
+    debug.textContent = "未检测到双手";
   }
 });
 
-const camera = new Camera(video, {
-  onFrame: async () => await hands.send({ image: video }),
-  width: 640,
-  height: 480
+const camera = new Camera(video,{
+  onFrame:()=>hands.send({image:video}),
+  width:640,
+  height:480
 });
 camera.start();
 </script>
