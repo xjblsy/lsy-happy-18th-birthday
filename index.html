@@ -9,25 +9,37 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
 <style>
+#startBtn{
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  padding: 16px 28px;
+  font-size: 18px;
+  border-radius: 40px;
+  border: none;
+  background: linear-gradient(135deg,#ff7ac8,#c77dff);
+  color: white;
+  cursor: pointer;
+  z-index: 10;
+}
+
 html, body {
   margin: 0;
   padding: 0;
   overflow: hidden;
   background: #05010a;
-  font-family: "Segoe UI", "PingFang SC", sans-serif;
+  font-family: "Segoe UI","PingFang SC",sans-serif;
 }
-canvas {
-  position: fixed;
-  top: 0;
-  left: 0;
-}
+canvas { position: fixed; top: 0; left: 0; }
+
 #debug {
   position: fixed;
   top: 10px;
   left: 10px;
   color: #fff;
   font-size: 12px;
-  opacity: 0.7;
+  opacity: 0.75;
 }
 #hint {
   position: fixed;
@@ -40,164 +52,169 @@ canvas {
 </head>
 
 <body>
+<button id="startBtn">点击开始祝福</button>
 <canvas id="canvas"></canvas>
-<div id="debug">等待手势识别...</div>
+<div id="debug">等待启动…</div>
 <div id="hint">🙏 双手合十 → 生日祝福 ｜ ✋ 向外展开 → 🎂</div>
 
 <script>
+/* ===== Canvas ===== */
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 const debug = document.getElementById("debug");
 
-resize();
-window.addEventListener("resize", resize);
-
-function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+function resize(){
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
 }
+resize();
+addEventListener("resize", resize);
 
-/* ===== 背景绘制 ===== */
-function drawBackground() {
+/* ===== Background ===== */
+function drawBackground(){
   const g = ctx.createRadialGradient(
     canvas.width/2, canvas.height/2, 0,
     canvas.width/2, canvas.height/2, canvas.width
   );
-  g.addColorStop(0, "#1a0a2e");
-  g.addColorStop(1, "#05010a");
+  g.addColorStop(0,"#1a0a2e");
+  g.addColorStop(1,"#05010a");
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 }
 
-/* ===== 光粒 ===== */
+/* ===== Particles ===== */
 let particles = [];
-
-class Particle {
-  constructor(x, y) {
-    this.x = Math.random() * canvas.width;
-    this.y = Math.random() * canvas.height;
-    this.tx = x;
-    this.ty = y;
+class Particle{
+  constructor(x,y){
+    this.x=Math.random()*canvas.width;
+    this.y=Math.random()*canvas.height;
+    this.tx=x; this.ty=y;
   }
-  update() {
-    this.x += (this.tx - this.x) * 0.08;
-    this.y += (this.ty - this.y) * 0.08;
+  update(){
+    this.x+=(this.tx-this.x)*0.08;
+    this.y+=(this.ty-this.y)*0.08;
   }
-  draw() {
+  draw(){
     ctx.beginPath();
-    ctx.fillStyle = "rgba(255,200,255,0.9)";
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = "#ffb3ff";
-    ctx.arc(this.x, this.y, 2, 0, Math.PI*2);
+    ctx.fillStyle="rgba(255,200,255,0.9)";
+    ctx.shadowBlur=12;
+    ctx.shadowColor="#ffb3ff";
+    ctx.arc(this.x,this.y,2,0,Math.PI*2);
     ctx.fill();
   }
 }
 
-/* ===== 形状生成 ===== */
-function shapeFromDraw(drawFn) {
-  const off = document.createElement("canvas");
-  off.width = canvas.width;
-  off.height = canvas.height;
-  const o = off.getContext("2d");
-  drawFn(o);
-  const data = o.getImageData(0,0,canvas.width,canvas.height).data;
-  const pts = [];
-  for(let y=0;y<canvas.height;y+=6){
-    for(let x=0;x<canvas.width;x+=6){
-      if(data[(y*canvas.width+x)*4+3]>150){
-        pts.push({x,y});
-      }
+/* ===== Shapes ===== */
+function shapeFromDraw(draw){
+  const off=document.createElement("canvas");
+  off.width=canvas.width;
+  off.height=canvas.height;
+  const o=off.getContext("2d");
+  draw(o);
+  const data=o.getImageData(0,0,off.width,off.height).data;
+  const pts=[];
+  for(let y=0;y<off.height;y+=6){
+    for(let x=0;x<off.width;x+=6){
+      if(data[(y*off.width+x)*4+3]>150) pts.push({x,y});
     }
   }
   return pts;
 }
 
-function birthdayText() {
-  return shapeFromDraw(o=>{
-    o.fillStyle="#fff";
-    o.font="bold 120px Segoe UI";
-    o.textAlign="center";
-    o.textBaseline="middle";
-    o.fillText("Happy Birthday",canvas.width/2,canvas.height/2);
-  });
+const birthdayText=()=>shapeFromDraw(o=>{
+  o.fillStyle="#fff";
+  o.font="bold 120px Segoe UI";
+  o.textAlign="center";
+  o.textBaseline="middle";
+  o.fillText("Happy Birthday",canvas.width/2,canvas.height/2);
+});
+
+const cakeShape=()=>shapeFromDraw(o=>{
+  const cx=canvas.width/2, cy=canvas.height/2+50;
+  o.fillStyle="#fff";
+  o.fillRect(cx-120,cy,240,80);
+  o.fillRect(cx-90,cy-60,180,60);
+  o.beginPath();
+  o.moveTo(cx,cy-100);
+  o.lineTo(cx,cy-60);
+  o.lineWidth=6;
+  o.strokeStyle="#fff";
+  o.stroke();
+});
+
+function morph(shape){
+  particles=shape.map(p=>new Particle(p.x,p.y));
 }
 
-function cakeShape() {
-  return shapeFromDraw(o=>{
-    const cx=canvas.width/2, cy=canvas.height/2+50;
-    o.fillStyle="#fff";
-    o.fillRect(cx-120,cy,240,80);
-    o.fillRect(cx-90,cy-60,180,60);
-    o.beginPath();
-    o.moveTo(cx,cy-100);
-    o.lineTo(cx,cy-60);
-    o.lineWidth=6;
-    o.strokeStyle="#fff";
-    o.stroke();
-  });
-}
-
-function morph(shape) {
-  particles = shape.map(p=>new Particle(p.x,p.y));
-}
-
-/* ===== 动画 ===== */
-function animate(){
+/* ===== Animation ===== */
+(function animate(){
   drawBackground();
-  particles.forEach(p=>{
-    p.update();
-    p.draw();
-  });
+  particles.forEach(p=>{p.update();p.draw();});
   requestAnimationFrame(animate);
-}
-animate();
+})();
 
-/* ===== 手势识别 ===== */
-let phase = "idle";
-let smoothDist = null;
+/* ===== MediaPipe ===== */
+let phase="idle";
+let smoothDist=null;
+let lastTriggerTime=0;
 
-const video = document.createElement("video");
+const video=document.createElement("video");
+video.setAttribute("playsinline","");
+video.muted=true;
+video.autoplay=true;
 video.style.display="none";
 document.body.appendChild(video);
 
-const hands = new Hands({
-  locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+const hands=new Hands({
+  locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
 });
 
 hands.setOptions({
-  maxNumHands: 2,
-  minDetectionConfidence: 0.7,
-  minTrackingConfidence: 0.7
+  maxNumHands:2,
+  modelComplexity:0,
+  minDetectionConfidence:0.6,
+  minTrackingConfidence:0.6
 });
 
 hands.onResults(res=>{
+  debug.textContent="Hands pipeline 运行中";
   if(res.multiHandLandmarks?.length===2){
     const a=res.multiHandLandmarks[0][0];
     const b=res.multiHandLandmarks[1][0];
     const d=Math.hypot(a.x-b.x,a.y-b.y);
-    smoothDist = smoothDist ? smoothDist*0.8 + d*0.2 : d;
+    smoothDist=smoothDist?smoothDist*0.8+d*0.2:d;
 
-    debug.textContent = `双手距离：${smoothDist.toFixed(2)}`;
+    debug.textContent=`双手距离 ${smoothDist.toFixed(2)}`;
 
-    if(smoothDist < 0.18 && phase!=="text"){
-      phase="text";
-      morph(birthdayText());
+    const now=Date.now();
+    if(now-lastTriggerTime>800){
+      if(smoothDist<0.2 && phase!=="text"){
+        phase="text";
+        morph(birthdayText());
+        lastTriggerTime=now;
+      }
+      if(smoothDist>0.45 && phase==="text"){
+        phase="cake";
+        morph(cakeShape());
+        lastTriggerTime=now;
+      }
     }
-    if(smoothDist > 0.45 && phase==="text"){
-      phase="cake";
-      morph(cakeShape());
-    }
-  } else {
-    debug.textContent = "未检测到双手";
   }
 });
 
-const camera = new Camera(video,{
-  onFrame:()=>hands.send({image:video}),
+const camera=new Camera(video,{
+  onFrame: async ()=>{
+    await hands.send({image:video});
+  },
   width:640,
   height:480
 });
-camera.start();
+
+document.getElementById("startBtn").onclick=async()=>{
+  debug.textContent="启动摄像头中…";
+  await camera.start();
+  startBtn.style.display="none";
+};
 </script>
 </body>
 </html>
