@@ -39,7 +39,7 @@ canvas { position: fixed; top: 0; left: 0; }
   left: 10px;
   color: #fff;
   font-size: 12px;
-  opacity: 0.75;
+  opacity: 0.8;
 }
 #hint {
   position: fixed;
@@ -155,8 +155,8 @@ function morph(shape){
 
 /* ===== MediaPipe ===== */
 let phase="idle";
-let smoothDist=null;
-let lastTriggerTime=0;
+let closeCount=0;
+let openCount=0;
 
 const video=document.createElement("video");
 video.setAttribute("playsinline","");
@@ -177,40 +177,45 @@ hands.setOptions({
 });
 
 hands.onResults(res=>{
-  debug.textContent="Hands pipeline 运行中";
   if(res.multiHandLandmarks?.length===2){
-    const a=res.multiHandLandmarks[0][0];
-    const b=res.multiHandLandmarks[1][0];
-    const d=Math.hypot(a.x-b.x,a.y-b.y);
-    smoothDist=smoothDist?smoothDist*0.8+d*0.2:d;
+    const p1 = res.multiHandLandmarks[0][8]; // 食指指尖
+    const p2 = res.multiHandLandmarks[1][8];
+    const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
 
-    debug.textContent=`双手距离 ${smoothDist.toFixed(2)}`;
+    debug.textContent = `指尖距离 ${d.toFixed(2)}`;
 
-    const now=Date.now();
-    if(now-lastTriggerTime>800){
-      if(smoothDist<0.2 && phase!=="text"){
-        phase="text";
-        morph(birthdayText());
-        lastTriggerTime=now;
-      }
-      if(smoothDist>0.45 && phase==="text"){
-        phase="cake";
-        morph(cakeShape());
-        lastTriggerTime=now;
-      }
+    if(d < 0.08){
+      closeCount++;
+      openCount = 0;
+    } else if(d > 0.25){
+      openCount++;
+      closeCount = 0;
+    } else {
+      closeCount = openCount = 0;
     }
+
+    if(closeCount > 6 && phase !== "text"){
+      phase = "text";
+      morph(birthdayText());
+    }
+
+    if(openCount > 6 && phase === "text"){
+      phase = "cake";
+      morph(cakeShape());
+    }
+  } else {
+    debug.textContent = "请同时伸出两只手";
+    closeCount = openCount = 0;
   }
 });
 
 const camera=new Camera(video,{
-  onFrame: async ()=>{
-    await hands.send({image:video});
-  },
+  onFrame: async ()=>{ await hands.send({image:video}); },
   width:640,
   height:480
 });
 
-document.getElementById("startBtn").onclick=async()=>{
+startBtn.onclick=async()=>{
   debug.textContent="启动摄像头中…";
   await camera.start();
   startBtn.style.display="none";
